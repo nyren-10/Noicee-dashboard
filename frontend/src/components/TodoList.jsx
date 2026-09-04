@@ -44,15 +44,16 @@ function TodoList() {
         <span className="text-blue-400">⚡</span> Survival Tasks
       </h2>
       
-      <form onSubmit={addTask} className="flex gap-3 mb-6">
+      {/* FIXED FORM: flex-col for mobile, sm:flex-row for desktop */}
+      <form onSubmit={addTask} className="flex flex-col sm:flex-row gap-3 mb-6">
         <input 
           type="text" 
           value={newTask} 
           onChange={(e) => setNewTask(e.target.value)} 
           placeholder="What are you procrastinating on?" 
-          className="flex-1 bg-gray-900 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+          className="flex-1 w-full bg-gray-900 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
         />
-        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20">
+        <button type="submit" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20">
           Add
         </button>
       </form>
@@ -64,14 +65,14 @@ function TodoList() {
               type="checkbox" 
               checked={task.is_completed} 
               onChange={() => toggleTask(task.id, task.is_completed)} 
-              className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900 cursor-pointer"
+              className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900 cursor-pointer shrink-0"
             />
-            <span className={`flex-1 text-lg ${task.is_completed ? 'line-through text-gray-500' : 'text-gray-200'}`}>
+            <span className={`flex-1 text-lg ${task.is_completed ? 'line-through text-gray-500' : 'text-gray-200'} break-words`}>
               {task.title}
             </span>
             <button 
               onClick={() => deleteTask(task.id)} 
-              className="text-gray-500 hover:text-red-400 hover:bg-red-400/10 px-3 py-1.5 rounded-lg transition-all text-sm font-medium"
+              className="text-gray-500 hover:text-red-400 hover:bg-red-400/10 px-3 py-1.5 rounded-lg transition-all text-sm font-medium shrink-0"
             >
               Trash
             </button>

@@ -18,7 +18,9 @@ export default function EscapePlan() {
 
   return (
     <div className="bg-gray-900 border border-purple-500 rounded-xl p-6 mb-8 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-      <div className="flex justify-between items-center mb-6">
+      
+      {/* THE FIX: Stack on mobile (flex-col), side-by-side on desktop (sm:flex-row) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
             🚀 Comprehensive Bunk Report
@@ -28,7 +30,8 @@ export default function EscapePlan() {
         <button 
           onClick={generateReport}
           disabled={isLoading}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-lg transition-all disabled:opacity-50"
+          // Made the button full width on mobile so it doesn't look awkward
+          className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition-all disabled:opacity-50"
         >
           {isLoading ? "Running Simulation..." : "Execute Analytics"}
         </button>

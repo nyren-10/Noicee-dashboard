@@ -56,7 +56,7 @@ function ResearchBot() {
         )}
       </div>
 
-      <form onSubmit={handleResearch} className="flex gap-3">
+      <form onSubmit={handleResearch} className="flex flex-col sm:flex-row gap-3">
         <input 
           type="text" 
           value={query} 

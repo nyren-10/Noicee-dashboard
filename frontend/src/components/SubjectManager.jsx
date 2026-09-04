@@ -79,7 +79,6 @@ function SubjectManager() {
     })
   }
 
-  // Trigger edit mode and populate current stats
   const startEditing = (sub) => {
     setEditingId(sub.id)
     setEditName(sub.name)
@@ -91,7 +90,8 @@ function SubjectManager() {
 
   return (
     <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl">
-     <div className="flex justify-between items-center mb-6">
+     {/* FIXED HEADER: Stack on mobile, side-by-side on desktop */}
+     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h2 className="text-xl font-heading font-bold text-white flex items-center gap-2">
           <span className="text-purple-400">📊</span> RTU Hitlist
         </h2>
@@ -103,21 +103,22 @@ function SubjectManager() {
               .then(data => {
                 alert(data.message || data.error);
                 e.target.innerText = "📧 Sync via Gmail";
-                window.location.reload(); // Quick refresh to show new stats
+                window.location.reload(); 
               });
           }}
-          className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 text-sm"
+          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold shadow-md shadow-blue-500/20 transition-all flex justify-center items-center gap-2 text-sm"
         >
           📧 Sync via Gmail
         </button>
       </div>
       
+      {/* FIXED FORM: Flex wrap logic so inputs don't crush each other */}
       <form onSubmit={addSubject} className="flex flex-col md:flex-row gap-3 mb-8 bg-gray-900/50 p-4 rounded-xl border border-gray-700/50">
-        <input type="text" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Subject name..." className="flex-1 bg-gray-900 border border-gray-700 text-white rounded-xl px-4 py-2.5 focus:outline-none focus:border-purple-500" />
-        <div className="flex gap-3">
-          <input type="number" min="0" value={initialAttended} onChange={(e) => setInitialAttended(e.target.value)} placeholder="Attended" className="w-24 bg-gray-900 border border-gray-700 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-500 text-sm" />
-          <input type="number" min="0" value={initialTotal} onChange={(e) => setInitialTotal(e.target.value)} placeholder="Total" className="w-24 bg-gray-900 border border-gray-700 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-500 text-sm" />
-          <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-purple-500/20">Add</button>
+        <input type="text" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Subject name..." className="flex-1 w-full bg-gray-900 border border-gray-700 text-white rounded-xl px-4 py-2.5 focus:outline-none focus:border-purple-500" />
+        <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full md:w-auto">
+          <input type="number" min="0" value={initialAttended} onChange={(e) => setInitialAttended(e.target.value)} placeholder="Attended" className="flex-1 min-w-[80px] sm:w-24 bg-gray-900 border border-gray-700 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-500 text-sm" />
+          <input type="number" min="0" value={initialTotal} onChange={(e) => setInitialTotal(e.target.value)} placeholder="Total" className="flex-1 min-w-[80px] sm:w-24 bg-gray-900 border border-gray-700 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-500 text-sm" />
+          <button type="submit" className="w-full sm:w-auto bg-purple-600 hover:bg-purple-500 text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-purple-500/20">Add</button>
         </div>
       </form>
 
@@ -133,12 +134,12 @@ function SubjectManager() {
                   <div className="flex flex-col gap-3 w-full mr-2 bg-gray-900 p-3 rounded-lg border border-gray-700">
                     <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:border-purple-500" placeholder="Subject Name" />
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                       <div className="flex-1 flex items-center gap-2">
                         <span className="text-gray-400 text-xs font-bold uppercase">Att:</span>
                         <input type="number" min="0" value={editAttended} onChange={e => setEditAttended(e.target.value)} className="bg-gray-800 text-white border border-gray-600 rounded-lg px-2 py-1.5 w-full text-sm focus:outline-none focus:border-purple-500" />
                       </div>
-                      <span className="text-gray-500 font-bold">/</span>
+                      <span className="text-gray-500 font-bold hidden sm:block">/</span>
                       <div className="flex-1 flex items-center gap-2">
                         <span className="text-gray-400 text-xs font-bold uppercase">Tot:</span>
                         <input type="number" min="0" value={editTotal} onChange={e => setEditTotal(e.target.value)} className="bg-gray-800 text-white border border-gray-600 rounded-lg px-2 py-1.5 w-full text-sm focus:outline-none focus:border-purple-500" />
@@ -164,7 +165,6 @@ function SubjectManager() {
                 )}
               </div>
               
-              {/* Hide the normal stats display if we are currently editing this specific card */}
               {editingId !== sub.id && (
                 <>
                   <div className="text-sm text-gray-500 mb-2">Attended {sub.attended} out of {sub.total_classes} classes</div>
