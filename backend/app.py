@@ -43,17 +43,47 @@ def upgrade_db():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("ALTER TABLE timetable ADD COLUMN end_time VARCHAR(20) DEFAULT '';")
-        cur.execute("ALTER TABLE timetable ADD COLUMN teacher VARCHAR(100) DEFAULT '';")
+        # 1. Base Tables (tasks, subjects, timetable)
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS tasks (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                due_date TIMESTAMP,
+                is_completed BOOLEAN DEFAULT FALSE
+            );
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS subjects (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                attended INT DEFAULT 0,
+                total_classes INT DEFAULT 0
+            );
+        ''')
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS timetable (
+                id SERIAL PRIMARY KEY,
+                day_of_week VARCHAR(15) NOT NULL,
+                subject_id INT REFERENCES subjects(id) ON DELETE CASCADE,
+                start_time TIME NOT NULL,
+                end_time VARCHAR(20) DEFAULT '',
+                teacher VARCHAR(100) DEFAULT '',
+                notes TEXT
+            );
+        ''')
         conn.commit()
-    except Exception:
+    except Exception as e:
+        print("Schema init error (base tables):", e)
         conn.rollback()
 
     try:
+        cur.execute("ALTER TABLE timetable ADD COLUMN IF NOT EXISTS end_time VARCHAR(20) DEFAULT '';")
+        cur.execute("ALTER TABLE timetable ADD COLUMN IF NOT EXISTS teacher VARCHAR(100) DEFAULT '';")
         cur.execute("DELETE FROM timetable WHERE subject_id IN (SELECT id FROM subjects WHERE trim(name) = '');")
         cur.execute("DELETE FROM subjects WHERE trim(name) = '';")
         conn.commit()
-    except Exception:
+    except Exception as e:
+        print("Schema migration error (timetable/clean):", e)
         conn.rollback()
 
     try:
@@ -62,11 +92,14 @@ def upgrade_db():
                 id SERIAL PRIMARY KEY,
                 title VARCHAR(255),
                 content TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         ''')
+        cur.execute("ALTER TABLE notes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;")
         conn.commit()
-    except Exception:
+    except Exception as e:
+        print("Schema init error (notes):", e)
         conn.rollback()
 
     try:
@@ -76,10 +109,10 @@ def upgrade_db():
             );
         ''')
         conn.commit()
-    except Exception:
+    except Exception as e:
+        print("Schema init error (sync_history):", e)
         conn.rollback()
 
-    # New: attendance log table for full history
     try:
         cur.execute('''
             CREATE TABLE IF NOT EXISTS attendance_log (
@@ -93,10 +126,10 @@ def upgrade_db():
             );
         ''')
         conn.commit()
-    except Exception:
+    except Exception as e:
+        print("Schema init error (attendance_log):", e)
         conn.rollback()
 
-    # New: last_sync_info table for tracking sync timestamps
     try:
         cur.execute('''
             CREATE TABLE IF NOT EXISTS last_sync_info (
@@ -112,7 +145,8 @@ def upgrade_db():
             ON CONFLICT (id) DO NOTHING;
         ''')
         conn.commit()
-    except Exception:
+    except Exception as e:
+        print("Schema init error (last_sync_info):", e)
         conn.rollback()
 
     finally:
@@ -121,6 +155,20 @@ def upgrade_db():
 
 with app.app_context():
     upgrade_db()
+
+# --- ROOT & HEALTH ROUTES ---
+@app.route('/')
+def root():
+    return jsonify({
+        "status": "online",
+        "service": "Noicee OS Backend",
+        "version": "1.0.0",
+        "time": datetime.datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S IST")
+    })
+
+@app.route('/api/health')
+def health():
+    return jsonify({"status": "healthy"})
 
 # --- TODO ROUTES ---
 @app.route('/api/tasks', methods=['GET', 'POST'])
