@@ -28,7 +28,7 @@ function NotesManager() {
   }
 
   const deleteNote = (id) => {
-    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/notes/${id}`, { method: `DELETE' }).then(loadNotes)
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/notes/${id}`, { method: 'DELETE' }).then(loadNotes)
   }
 
   const NOTE_COLORS = [
@@ -159,8 +159,8 @@ function NotesManager() {
                 <div className="flex items-center gap-3 shrink-0">
                   <button
                     onClick={() => {
-                      fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/notes/${selectedNote.id}`, {
-                        method: `PUT',
+                      fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/notes/${selectedNote.id}`, {
+                        method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ title: selectedNote.title, content: selectedNote.content })
                       }).then(() => {

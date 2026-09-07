@@ -39,8 +39,8 @@ function SubjectManager() {
     const newAttended = didAttend ? attended + 1 : attended
     const newTotal = total + 1
     const status = didAttend ? 'PRESENT' : 'ABSENT'
-    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/subjects/${id}`, {
-      method: `PUT',
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/subjects/${id}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ attended: newAttended, total_classes: newTotal, source: 'MANUAL', status })
     }).then(() => {
@@ -51,7 +51,7 @@ function SubjectManager() {
 
   const deleteSubject = (id) => {
     if (!window.confirm("Warning: Deleting this subject will also delete all its classes from the timetable! You sure?")) return
-    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/subjects/${id}`, { method: `DELETE' })
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/subjects/${id}`, { method: 'DELETE' })
       .then(() => setSubjects(subjects.filter(s => s.id !== id)))
   }
 
@@ -60,8 +60,8 @@ function SubjectManager() {
     const updatedAttended = parseInt(editAttended) || 0
     const updatedTotal = parseInt(editTotal) || 0
 
-    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/subjects/${id}`, {
-      method: `PUT',
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/subjects/${id}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: editName, attended: updatedAttended, total_classes: updatedTotal })
     }).then(() => {

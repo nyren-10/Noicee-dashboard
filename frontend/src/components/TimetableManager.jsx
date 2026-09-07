@@ -25,7 +25,7 @@ function TimetableManager() {
     e.preventDefault()
     if (!formData.subject_name || !formData.start_time) return
 
-    const url = editId ? ``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/timetable/${editId}` : `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/timetable`
+    const url = editId ? `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/timetable/${editId}` : `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/timetable`
     fetch(url, {
       method: editId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -50,7 +50,7 @@ function TimetableManager() {
   }
 
   const deleteClass = (id) => {
-    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/timetable/${id}`, { method: `DELETE' })
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/timetable/${id}`, { method: 'DELETE' })
       .then(() => setSchedule(schedule.filter(c => c.id !== id)))
   }
 

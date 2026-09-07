@@ -36,16 +36,16 @@ function TodoList() {
   }
 
   const toggleTask = (id, currentStatus) => {
-    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/tasks/${id}`, {
-      method: `PUT',
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/tasks/${id}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_completed: !currentStatus })
-    }).then(() => setTasks(tasks.map(t => t.id === id ? { ...t, is_completed: !currentStatus } : t)))
+    }).then(loadTasks)
   }
 
   const deleteTask = (id) => {
-    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/tasks/${id}`, { method: `DELETE' })
-      .then(() => setTasks(tasks.filter(t => t.id !== id)))
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/tasks/${id}`, { method: 'DELETE' })
+      .then(loadTasks)
   }
 
   const completed = tasks.filter(t => t.is_completed).length
