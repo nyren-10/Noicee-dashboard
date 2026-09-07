@@ -1,0 +1,44 @@
+databases:
+  - name: noicee-db
+    databaseName: student_manager
+    user: mayank
+
+services:
+  - type: web
+    name: noicee-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: noicee-db
+          property: host
+      - key: DB_NAME
+        value: student_manager
+      - key: DB_USER
+        value: mayank
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: noicee-db
+          property: password
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_APP_PASSWORD
+        sync: false
+
+  - type: web
+    name: noicee-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: noicee-backend
+          envVarKey: RENDER_EXTERNAL_URL

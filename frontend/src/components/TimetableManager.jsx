@@ -15,8 +15,8 @@ function TimetableManager() {
   })
 
   const loadData = () => {
-    fetch('http://127.0.0.1:5000/api/subjects').then(res => res.json()).then(data => setSubjects(data))
-    fetch('http://127.0.0.1:5000/api/timetable').then(res => res.json()).then(data => setSchedule(data))
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/subjects`).then(res => res.json()).then(data => setSubjects(data))
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/timetable`).then(res => res.json()).then(data => setSchedule(data))
   }
 
   useEffect(() => { loadData() }, [])
@@ -25,7 +25,7 @@ function TimetableManager() {
     e.preventDefault()
     if (!formData.subject_name || !formData.start_time) return
 
-    const url = editId ? `http://127.0.0.1:5000/api/timetable/${editId}` : 'http://127.0.0.1:5000/api/timetable'
+    const url = editId ? ``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/timetable/${editId}` : `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/timetable`
     fetch(url, {
       method: editId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -50,7 +50,7 @@ function TimetableManager() {
   }
 
   const deleteClass = (id) => {
-    fetch(`http://127.0.0.1:5000/api/timetable/${id}`, { method: 'DELETE' })
+    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/timetable/${id}`, { method: `DELETE' })
       .then(() => setSchedule(schedule.filter(c => c.id !== id)))
   }
 

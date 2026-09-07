@@ -8,7 +8,7 @@ load_dotenv()
 def init_db():
     # Connect to the vault
     conn = psycopg2.connect(
-        host='localhost',
+        host=os.environ.get('DB_HOST', 'localhost'),
         database=os.environ['DB_NAME'],
         user=os.environ['DB_USER'],
         password=os.environ['DB_PASSWORD']

@@ -26,13 +26,13 @@ function Analytics() {
   const [isChatting, setIsChatting] = useState(false)
 
   useEffect(() => {
-    fetch('http://127.0.0.1:5000/api/tasks').then(res => res.json()).then(data => setTasks(data))
-    fetch('http://127.0.0.1:5000/api/subjects').then(res => res.json()).then(data => setSubjects(data))
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/tasks`).then(res => res.json()).then(data => setTasks(data))
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/subjects`).then(res => res.json()).then(data => setSubjects(data))
   }, [])
 
   const generateReport = () => {
     setIsGenerating(true)
-    fetch('http://127.0.0.1:5000/api/ai-analytics', {
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/ai-analytics`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tasks, subjects })
@@ -47,7 +47,7 @@ function Analytics() {
     setChatQuery('')
     setIsChatting(true)
 
-    fetch('http://127.0.0.1:5000/api/analytics-chat', {
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/analytics-chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: currentQuery, tasks, subjects })

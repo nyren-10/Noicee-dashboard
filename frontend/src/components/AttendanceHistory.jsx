@@ -11,8 +11,8 @@ function AttendanceHistory() {
     const fetchData = async () => {
       try {
         const [logsRes, statusRes] = await Promise.all([
-          fetch('http://127.0.0.1:5000/api/attendance-log?limit=60'),
-          fetch('http://127.0.0.1:5000/api/sync-status')
+          fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/attendance-log?limit=60`),
+          fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/sync-status`)
         ])
         const logsData = await logsRes.json()
         const statusData = await statusRes.json()

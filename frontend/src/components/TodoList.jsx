@@ -15,7 +15,7 @@ function TodoList() {
   const [newTask, setNewTask] = useState('')
 
   useEffect(() => {
-    fetch('http://127.0.0.1:5000/api/tasks')
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/tasks`)
       .then(res => res.json())
       .then(data => setTasks(data))
       .catch(err => console.error("Flask is dead:", err))
@@ -25,7 +25,7 @@ function TodoList() {
     e.preventDefault()
     if (!newTask.trim()) return
 
-    fetch('http://127.0.0.1:5000/api/tasks', {
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: newTask })
@@ -36,15 +36,15 @@ function TodoList() {
   }
 
   const toggleTask = (id, currentStatus) => {
-    fetch(`http://127.0.0.1:5000/api/tasks/${id}`, {
-      method: 'PUT',
+    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/tasks/${id}`, {
+      method: `PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_completed: !currentStatus })
     }).then(() => setTasks(tasks.map(t => t.id === id ? { ...t, is_completed: !currentStatus } : t)))
   }
 
   const deleteTask = (id) => {
-    fetch(`http://127.0.0.1:5000/api/tasks/${id}`, { method: 'DELETE' })
+    fetch(``${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}`/api/tasks/${id}`, { method: `DELETE' })
       .then(() => setTasks(tasks.filter(t => t.id !== id)))
   }
 

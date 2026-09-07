@@ -16,7 +16,7 @@ function AiParser() {
     formData.append('image', file)
     formData.append('custom_prompt', customPrompt)
 
-    fetch('http://127.0.0.1:5000/api/parse-timetable', {
+    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/parse-timetable`, {
       method: 'POST',
       body: formData
     })
