@@ -2,6 +2,7 @@ import os
 import imaplib
 import email
 from email.header import decode_header
+from email.utils import parsedate_to_datetime
 import threading
 from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify
@@ -14,6 +15,9 @@ import json
 from dotenv import load_dotenv
 import datetime
 import math
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+import pytz
 
 load_dotenv()
 app = Flask(__name__)
@@ -21,6 +25,7 @@ CORS(app)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 GEMINI_MODEL = 'gemini-3.6-flash'
+IST = pytz.timezone('Asia/Kolkata')
 
 def get_db_connection():
     return psycopg2.connect(
@@ -38,7 +43,7 @@ def upgrade_db():
         cur.execute("ALTER TABLE timetable ADD COLUMN teacher VARCHAR(100) DEFAULT '';")
         conn.commit()
     except Exception:
-        conn.rollback() 
+        conn.rollback()
 
     try:
         cur.execute("DELETE FROM timetable WHERE subject_id IN (SELECT id FROM subjects WHERE trim(name) = '');")
@@ -60,12 +65,47 @@ def upgrade_db():
     except Exception:
         conn.rollback()
 
-    # THE NEW SHIELD: Table to prevent double-dipping the email sync
     try:
         cur.execute('''
             CREATE TABLE IF NOT EXISTS sync_history (
                 sync_date DATE PRIMARY KEY
             );
+        ''')
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
+    # New: attendance log table for full history
+    try:
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS attendance_log (
+                id SERIAL PRIMARY KEY,
+                subject_id INT REFERENCES subjects(id) ON DELETE CASCADE,
+                subject_name VARCHAR(100),
+                log_date DATE NOT NULL,
+                status VARCHAR(10) NOT NULL,
+                source VARCHAR(20) DEFAULT 'EMAIL_SYNC',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
+    # New: last_sync_info table for tracking sync timestamps
+    try:
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS last_sync_info (
+                id INT PRIMARY KEY DEFAULT 1,
+                last_sync_at TIMESTAMP,
+                next_sync_at TIMESTAMP,
+                status VARCHAR(50) DEFAULT 'never'
+            );
+        ''')
+        cur.execute('''
+            INSERT INTO last_sync_info (id, status)
+            VALUES (1, 'never')
+            ON CONFLICT (id) DO NOTHING;
         ''')
         conn.commit()
     except Exception:
@@ -113,24 +153,42 @@ def handle_notes():
     cur = conn.cursor()
     if request.method == 'POST':
         data = request.json
-        cur.execute('INSERT INTO notes (title, content) VALUES (%s, %s) RETURNING id, title, content', (data.get('title', 'Untitled'), data.get('content', '')))
+        cur.execute('INSERT INTO notes (title, content) VALUES (%s, %s) RETURNING id, title, content, created_at, updated_at', 
+                    (data.get('title', 'Untitled'), data.get('content', '')))
         n = cur.fetchone()
         conn.commit()
-        return jsonify({"id": n[0], "title": n[1], "content": n[2]})
+        return jsonify({"id": n[0], "title": n[1], "content": n[2], "created_at": n[3], "updated_at": n[4]})
     elif request.method == 'GET':
-        cur.execute('SELECT id, title, content FROM notes ORDER BY id DESC')
+        cur.execute('SELECT id, title, content, created_at, updated_at FROM notes ORDER BY updated_at DESC')
         notes = cur.fetchall()
-        return jsonify([{"id": n[0], "title": n[1], "content": n[2]} for n in notes])
+        return jsonify([{"id": n[0], "title": n[1], "content": n[2], "created_at": n[3], "updated_at": n[4]} for n in notes])
 
-@app.route('/api/notes/<int:note_id>', methods=['DELETE'])
-def delete_note(note_id):
+@app.route('/api/notes/<int:note_id>', methods=['PUT', 'DELETE'])
+def manage_note(note_id):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute('DELETE FROM notes WHERE id = %s', (note_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
-    return jsonify({"message": "Note trashed"})
+    if request.method == 'PUT':
+        data = request.json
+        cur.execute('''
+            UPDATE notes 
+            SET title = %s, content = %s, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = %s 
+            RETURNING id, title, content, created_at, updated_at
+        ''', (data.get('title'), data.get('content'), note_id))
+        n = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        if n:
+            return jsonify({"id": n[0], "title": n[1], "content": n[2], "created_at": n[3], "updated_at": n[4]})
+        return jsonify({"error": "Note not found"}), 404
+
+    elif request.method == 'DELETE':
+        cur.execute('DELETE FROM notes WHERE id = %s', (note_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"message": "Note trashed"})
 
 # --- SUBJECT ROUTES ---
 @app.route('/api/subjects', methods=['GET', 'POST'])
@@ -143,7 +201,7 @@ def handle_subjects():
         attended = data.get('attended', 0)
         total_classes = data.get('total_classes', 0)
         cur.execute(
-            'INSERT INTO subjects (name, attended, total_classes) VALUES (%s, %s, %s) RETURNING id, name, attended, total_classes', 
+            'INSERT INTO subjects (name, attended, total_classes) VALUES (%s, %s, %s) RETURNING id, name, attended, total_classes',
             (name, attended, total_classes)
         )
         new_subject = cur.fetchone()
@@ -164,6 +222,18 @@ def modify_subject(subject_id):
             cur.execute('UPDATE subjects SET name = %s WHERE id = %s', (data['name'], subject_id))
         if 'attended' in data:
             cur.execute('UPDATE subjects SET attended = %s, total_classes = %s WHERE id = %s', (data['attended'], data['total_classes'], subject_id))
+            # Log manual attendance if source is provided
+            source = data.get('source', 'MANUAL')
+            if source == 'MANUAL':
+                status = data.get('status')
+                if status in ('PRESENT', 'ABSENT'):
+                    cur.execute('SELECT name FROM subjects WHERE id = %s', (subject_id,))
+                    sub_row = cur.fetchone()
+                    sub_name = sub_row[0] if sub_row else ''
+                    cur.execute(
+                        'INSERT INTO attendance_log (subject_id, subject_name, log_date, status, source) VALUES (%s, %s, %s, %s, %s)',
+                        (subject_id, sub_name, datetime.date.today(), status, 'MANUAL')
+                    )
         conn.commit()
         return jsonify({"message": "Subject updated."})
     elif request.method == 'DELETE':
@@ -182,7 +252,7 @@ def handle_timetable():
         subject_name = data.get('subject_name', '').strip()
         cur.execute('SELECT id FROM subjects WHERE name ILIKE %s', (subject_name,))
         sub = cur.fetchone()
-        if sub: 
+        if sub:
             subject_id = sub[0]
         else:
             cur.execute('INSERT INTO subjects (name, attended, total_classes) VALUES (%s, 0, 0) RETURNING id', (subject_name,))
@@ -201,8 +271,10 @@ def handle_timetable():
         schedule = []
         for c in classes:
             start_val = c[3]
-            try: start_str = start_val.strftime("%I:%M %p") if start_val else ""
-            except AttributeError: start_str = str(start_val)
+            try:
+                start_str = start_val.strftime("%I:%M %p") if start_val else ""
+            except AttributeError:
+                start_str = str(start_val)
             schedule.append({"id": c[0], "day_of_week": c[1], "subject_name": c[2], "start_time": start_str, "end_time": str(c[4]), "teacher": str(c[5]), "notes": c[6]})
         return jsonify(schedule)
 
@@ -215,7 +287,7 @@ def modify_timetable(item_id):
         subject_name = data.get('subject_name', '').strip()
         cur.execute('SELECT id FROM subjects WHERE name ILIKE %s', (subject_name,))
         sub = cur.fetchone()
-        if sub: 
+        if sub:
             subject_id = sub[0]
         else:
             cur.execute('INSERT INTO subjects (name, attended, total_classes) VALUES (%s, 0, 0) RETURNING id', (subject_name,))
@@ -236,7 +308,8 @@ def modify_timetable(item_id):
 @app.route('/api/research', methods=['POST'])
 def research_chat():
     query = request.json.get('query', '')
-    if not query: return jsonify({"error": "You didn't ask anything."}), 400
+    if not query:
+        return jsonify({"error": "You didn't ask anything."}), 400
     prompt = f"The user is asking: '{query}'. Explain this in a simple, highly explanatory, and easy-to-understand way. CRITICAL RULE: DO NOT use any Markdown formatting. Use standard plain text with normal paragraph breaks only."
     try:
         model = genai.GenerativeModel(GEMINI_MODEL)
@@ -291,7 +364,8 @@ def ai_analytics():
 # --- AI PARSER ROUTE ---
 @app.route('/api/parse-timetable', methods=['POST'])
 def parse_timetable():
-    if 'image' not in request.files: return jsonify({"error": "No image uploaded."}), 400
+    if 'image' not in request.files:
+        return jsonify({"error": "No image uploaded."}), 400
     custom_instructions = request.form.get('custom_prompt', '')
     img = PIL.Image.open(io.BytesIO(request.files['image'].read()))
 
@@ -320,7 +394,7 @@ def parse_timetable():
 
         for item in parsed_data:
             subject_name = item.get('subject_name', '').strip()
-            if not subject_name or subject_name.upper() in ["SECTION A", "LUNCH"]: 
+            if not subject_name or subject_name.upper() in ["SECTION A", "LUNCH"]:
                 continue
 
             raw_day = item.get('day_of_week', 'Monday').strip()
@@ -328,13 +402,13 @@ def parse_timetable():
 
             cur.execute('SELECT id FROM subjects WHERE name ILIKE %s', (subject_name,))
             sub = cur.fetchone()
-            if sub: 
+            if sub:
                 subject_id = sub[0]
             else:
                 cur.execute('INSERT INTO subjects (name, attended, total_classes) VALUES (%s, 0, 0) RETURNING id', (subject_name,))
                 subject_id = cur.fetchone()[0]
 
-            cur.execute('''INSERT INTO timetable (day_of_week, subject_id, start_time, end_time, teacher, notes) VALUES (%s, %s, %s, %s, %s, %s)''', 
+            cur.execute('''INSERT INTO timetable (day_of_week, subject_id, start_time, end_time, teacher, notes) VALUES (%s, %s, %s, %s, %s, %s)''',
                         (clean_day, subject_id, item.get('start_time', ''), item.get('end_time', ''), item.get('teacher', ''), item.get('notes', '')))
             classes_added += 1
 
@@ -345,18 +419,17 @@ def parse_timetable():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# --- THE GHOST WORKER (Runs in the background) ---
+# --- BACKGROUND EMAIL SYNC WORKER ---
 def background_email_sync():
     print("Background thread started. Hunting for emails...")
-    
+
     conn = get_db_connection()
     cur = conn.cursor()
     today_date = datetime.date.today()
 
-    # THE SHIELD: Check if we already synced today
     cur.execute('SELECT 1 FROM sync_history WHERE sync_date = %s', (today_date,))
     if cur.fetchone():
-        print("Double-Dip Prevented: You already synced today's attendance.")
+        print("Double-Dip Prevented: Already synced today's attendance.")
         cur.close()
         conn.close()
         return
@@ -366,6 +439,8 @@ def background_email_sync():
 
     if not email_user or not email_pass:
         print("Sync Failed: Email credentials missing in .env")
+        cur.execute("UPDATE last_sync_info SET status='no_credentials' WHERE id=1")
+        conn.commit()
         cur.close()
         conn.close()
         return
@@ -375,12 +450,14 @@ def background_email_sync():
         mail.login(email_user, email_pass)
         mail.select("inbox")
 
-        status, messages = mail.search(None, '(SUBJECT "Daily Attendance Report")')
+        status, messages = mail.search(None, '(SUBJECT "Attendance Report")')
         email_ids = messages[0].split()
 
         if not email_ids:
             print("Sync Failed: No daily attendance emails found.")
             mail.logout()
+            cur.execute("UPDATE last_sync_info SET status='no_email', last_sync_at=%s WHERE id=1", (datetime.datetime.now(IST),))
+            conn.commit()
             cur.close()
             conn.close()
             return
@@ -389,6 +466,22 @@ def background_email_sync():
         status, msg_data = mail.fetch(latest_email_id, "(RFC822)")
 
         msg = email.message_from_bytes(msg_data[0][1])
+
+        # Validate time window: Check if the email arrived today between 4 PM and 7 PM
+        msg_date_str = msg.get('Date')
+        if msg_date_str:
+            msg_date = parsedate_to_datetime(msg_date_str).astimezone(IST)
+            
+            is_today = msg_date.date() == today_date
+            is_in_window = 16 <= msg_date.hour <= 19
+            
+            if not (is_today and is_in_window):
+                print(f"Sync Skipped: Latest attendance email arrived outside the 4 PM - 7 PM window or on a different day (Received: {msg_date.strftime('%Y-%m-%d %H:%M')}).")
+                mail.logout()
+                cur.close()
+                conn.close()
+                return
+
         html_content = ""
 
         if msg.is_multipart():
@@ -402,21 +495,24 @@ def background_email_sync():
         mail.logout()
 
         if not html_content:
-            print("Sync Failed: No HTML table found in the email.")
+            print("Sync Failed: No HTML content in the email.")
+            cur.execute("UPDATE last_sync_info SET status='no_html', last_sync_at=%s WHERE id=1", (datetime.datetime.now(IST),))
+            conn.commit()
             cur.close()
             conn.close()
             return
 
         soup = BeautifulSoup(html_content, 'html.parser')
         table = soup.find('table')
-        
+
         if not table:
-            print("Sync Failed: Could not find the attendance table.")
+            print("Sync Failed: Could not find attendance table.")
+            cur.execute("UPDATE last_sync_info SET status='no_table', last_sync_at=%s WHERE id=1", (datetime.datetime.now(IST),))
+            conn.commit()
             cur.close()
             conn.close()
             return
 
-        # THE BULLETPROOF ALIAS MAPPER (Everything lowercased)
         subject_aliases = {
             "data structures and algorithms lab": "DSA",
             "object oriented programming lab": "OOPS",
@@ -431,18 +527,17 @@ def background_email_sync():
 
         for row in table.find_all('tr')[1:]:
             cols = row.find_all('td')
-            
+
             if len(cols) >= 4:
                 raw_subject_name = cols[2].text.strip()
                 status_text = cols[3].text.strip().upper()
 
-                # Force lowercase lookup to destroy case-sensitivity
                 subject_name = subject_aliases.get(raw_subject_name.lower(), raw_subject_name)
 
                 cur.execute('SELECT id FROM subjects WHERE name ILIKE %s', (subject_name,))
                 sub = cur.fetchone()
-                
-                if sub: 
+
+                if sub:
                     sub_id = sub[0]
                 else:
                     cur.execute('INSERT INTO subjects (name, attended, total_classes) VALUES (%s, 0, 0) RETURNING id', (subject_name,))
@@ -450,77 +545,152 @@ def background_email_sync():
 
                 if "PRESENT" in status_text:
                     cur.execute('UPDATE subjects SET attended = attended + 1, total_classes = total_classes + 1 WHERE id = %s', (sub_id,))
+                    log_status = 'PRESENT'
                 elif "ABSENT" in status_text:
                     cur.execute('UPDATE subjects SET total_classes = total_classes + 1 WHERE id = %s', (sub_id,))
-                
+                    log_status = 'ABSENT'
+                else:
+                    continue
+
+                # Log to attendance_log
+                cur.execute(
+                    'INSERT INTO attendance_log (subject_id, subject_name, log_date, status, source) VALUES (%s, %s, %s, %s, %s)',
+                    (sub_id, subject_name, today_date, log_status, 'EMAIL_SYNC')
+                )
                 subjects_updated += 1
 
-        # Log today's successful sync to block the double-dip
         cur.execute('INSERT INTO sync_history (sync_date) VALUES (%s)', (today_date,))
-        
+        now_ist = datetime.datetime.now(IST)
+        next_sync = now_ist.replace(hour=19, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
+        cur.execute(
+            "UPDATE last_sync_info SET status='success', last_sync_at=%s, next_sync_at=%s WHERE id=1",
+            (now_ist, next_sync)
+        )
+
         conn.commit()
         cur.close()
         conn.close()
-        print(f"Boom. Background Sync Complete: Logged {subjects_updated} classes.")
+        print(f"Auto-Sync Complete: Logged {subjects_updated} attendance records for {today_date}.")
 
     except Exception as e:
-        print(f"Background thread crashed: {str(e)}")
-        if not conn.closed:
+        print(f"Sync crashed: {str(e)}")
+        try:
             conn.rollback()
+            cur.execute("UPDATE last_sync_info SET status='error' WHERE id=1")
+            conn.commit()
             cur.close()
             conn.close()
+        except Exception:
+            pass
 
-# --- USP: LIVE EMAIL SYNC ROUTE (Instant Return) ---
-@app.route('/api/sync-email', methods=['POST'])
-def sync_email():
-    thread = threading.Thread(target=background_email_sync)
-    thread.start()
-    return jsonify({"message": "Sync started in the background! Your dashboard will update shortly."})
+# --- ATTENDANCE LOG ROUTES ---
+@app.route('/api/force-sync', methods=['POST'])
+def force_sync():
+    try:
+        background_email_sync()
+        return jsonify({"message": "Sync triggered successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
+@app.route('/api/attendance-log', methods=['GET'])
+def get_attendance_log():
+    subject_id = request.args.get('subject_id')
+    limit = request.args.get('limit', 60)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if subject_id:
+            cur.execute(
+                'SELECT id, subject_name, log_date, status, source, created_at FROM attendance_log WHERE subject_id = %s ORDER BY log_date DESC, created_at DESC LIMIT %s',
+                (subject_id, limit)
+            )
+        else:
+            cur.execute(
+                'SELECT id, subject_name, log_date, status, source, created_at FROM attendance_log ORDER BY log_date DESC, created_at DESC LIMIT %s',
+                (limit,)
+            )
+        rows = cur.fetchall()
+        result = [
+            {
+                "id": r[0],
+                "subject_name": r[1],
+                "log_date": r[2].isoformat() if r[2] else None,
+                "status": r[3],
+                "source": r[4],
+                "created_at": r[5].isoformat() if r[5] else None
+            }
+            for r in rows
+        ]
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/api/sync-status', methods=['GET'])
+def get_sync_status():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute('SELECT last_sync_at, next_sync_at, status FROM last_sync_info WHERE id = 1')
+        row = cur.fetchone()
+        if row:
+            return jsonify({
+                "last_sync_at": row[0].isoformat() if row[0] else None,
+                "next_sync_at": row[1].isoformat() if row[1] else None,
+                "status": row[2]
+            })
+        return jsonify({"last_sync_at": None, "next_sync_at": None, "status": "never"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 # --- USP: THE BUNK RUNWAY CALCULATOR ---
 @app.route('/api/bunk-runway', methods=['GET'])
 def bunk_runway():
     conn = get_db_connection()
     cur = conn.cursor()
-    
+
     cur.execute('SELECT id, name, attended, total_classes FROM subjects')
     subjects_raw = cur.fetchall()
-    
+
     subjects = {}
     bunk_bank = []
-    
+
     for row in subjects_raw:
         sub_id, name, attended, total = row
         subjects[sub_id] = {"name": name, "attended": attended, "total": total}
-        
+
         if total > 0:
             safe_bunks = math.floor((4 * attended / 3) - total)
             percentage = round((attended / total) * 100, 1)
         else:
             safe_bunks = 0
             percentage = 0
-            
+
         bunk_bank.append({
             "name": name,
             "safe_bunks": safe_bunks,
             "percentage": percentage
         })
-        
+
     bunk_bank.sort(key=lambda x: x['safe_bunks'])
-    
+
     cur.execute('SELECT day_of_week, subject_id FROM timetable')
     schedule = {"Monday": [], "Tuesday": [], "Wednesday": [], "Thursday": [], "Friday": [], "Saturday": [], "Sunday": []}
     for day, sub_id in cur.fetchall():
         clean_day = str(day).strip().capitalize()
         if clean_day in schedule:
             schedule[clean_day].append(sub_id)
-            
+
     cur.close()
     conn.close()
 
     days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    
+
     days_skipped = 0
     simulated_date = datetime.datetime.today()
     killer_subject = None
@@ -528,7 +698,7 @@ def bunk_runway():
     while days_skipped < 30:
         simulated_date += datetime.timedelta(days=1)
         current_day_name = days_of_week[simulated_date.weekday()]
-        
+
         failed_today = False
         for sub_id in schedule[current_day_name]:
             if sub_id in subjects:
@@ -551,5 +721,17 @@ def bunk_runway():
         "bunk_bank": bunk_bank
     })
 
+# --- APSCHEDULER: AUTO-SYNC AT 7 PM IST DAILY ---
+scheduler = BackgroundScheduler(timezone=IST)
+scheduler.add_job(
+    func=background_email_sync,
+    trigger=CronTrigger(hour=19, minute=0, timezone=IST),
+    id='daily_email_sync',
+    name='Daily Gmail Attendance Sync',
+    replace_existing=True
+)
+scheduler.start()
+print("APScheduler started. Daily sync scheduled for 7:00 PM IST.")
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)

@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 function SubjectManager() {
   const [subjects, setSubjects] = useState([])
   const [newSubject, setNewSubject] = useState('')
   const [initialAttended, setInitialAttended] = useState('')
   const [initialTotal, setInitialTotal] = useState('')
-  
-  // Upgraded Edit State
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
   const [editAttended, setEditAttended] = useState('')
@@ -23,10 +22,10 @@ function SubjectManager() {
     fetch('http://127.0.0.1:5000/api/subjects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        name: newSubject, 
-        attended: parseInt(initialAttended) || 0, 
-        total_classes: parseInt(initialTotal) || 0 
+      body: JSON.stringify({
+        name: newSubject,
+        attended: parseInt(initialAttended) || 0,
+        total_classes: parseInt(initialTotal) || 0
       })
     }).then(res => res.json()).then(data => {
       setSubjects([...subjects, data])
@@ -39,42 +38,34 @@ function SubjectManager() {
   const markAttendance = (id, attended, total, didAttend) => {
     const newAttended = didAttend ? attended + 1 : attended
     const newTotal = total + 1
+    const status = didAttend ? 'PRESENT' : 'ABSENT'
     fetch(`http://127.0.0.1:5000/api/subjects/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ attended: newAttended, total_classes: newTotal })
+      body: JSON.stringify({ attended: newAttended, total_classes: newTotal, source: 'MANUAL', status })
     }).then(() => {
       setSubjects(subjects.map(s => s.id === id ? { ...s, attended: newAttended, total_classes: newTotal } : s))
+      window.dispatchEvent(new Event('attendance-updated'))
     })
   }
 
   const deleteSubject = (id) => {
-    if(!window.confirm("Warning: Deleting this subject will also delete all its classes from the timetable! You sure?")) return;
+    if (!window.confirm("Warning: Deleting this subject will also delete all its classes from the timetable! You sure?")) return
     fetch(`http://127.0.0.1:5000/api/subjects/${id}`, { method: 'DELETE' })
       .then(() => setSubjects(subjects.filter(s => s.id !== id)))
   }
 
   const saveEdit = (id) => {
-    if (!editName.trim()) return;
-    
-    const updatedAttended = parseInt(editAttended) || 0;
-    const updatedTotal = parseInt(editTotal) || 0;
+    if (!editName.trim()) return
+    const updatedAttended = parseInt(editAttended) || 0
+    const updatedTotal = parseInt(editTotal) || 0
 
     fetch(`http://127.0.0.1:5000/api/subjects/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        name: editName,
-        attended: updatedAttended,
-        total_classes: updatedTotal
-      })
+      body: JSON.stringify({ name: editName, attended: updatedAttended, total_classes: updatedTotal })
     }).then(() => {
-      setSubjects(subjects.map(s => s.id === id ? { 
-        ...s, 
-        name: editName, 
-        attended: updatedAttended, 
-        total_classes: updatedTotal 
-      } : s))
+      setSubjects(subjects.map(s => s.id === id ? { ...s, name: editName, attended: updatedAttended, total_classes: updatedTotal } : s))
       setEditingId(null)
     })
   }
@@ -89,94 +80,136 @@ function SubjectManager() {
   const validSubjects = subjects.filter(sub => sub.name && sub.name.trim() !== '')
 
   return (
-    <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl">
-     {/* FIXED HEADER: Stack on mobile, side-by-side on desktop */}
-     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h2 className="text-xl font-heading font-bold text-white flex items-center gap-2">
-          <span className="text-purple-400">📊</span> RTU Hitlist
-        </h2>
-        <button 
-          onClick={(e) => {
-            e.target.innerText = "Syncing...";
-            fetch('http://127.0.0.1:5000/api/sync-email', { method: 'POST' })
-              .then(res => res.json())
-              .then(data => {
-                alert(data.message || data.error);
-                e.target.innerText = "📧 Sync via Gmail";
-                window.location.reload(); 
-              });
-          }}
-          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold shadow-md shadow-blue-500/20 transition-all flex justify-center items-center gap-2 text-sm"
-        >
-          📧 Sync via Gmail
-        </button>
+    <div className="glass-card p-6">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.25)' }}>
+          📊
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>RTU Hitlist</h2>
+          <p className="text-xs text-slate-500">{validSubjects.length} subjects tracked</p>
+        </div>
       </div>
-      
-      {/* FIXED FORM: Flex wrap logic so inputs don't crush each other */}
-      <form onSubmit={addSubject} className="flex flex-col md:flex-row gap-3 mb-8 bg-gray-900/50 p-4 rounded-xl border border-gray-700/50">
-        <input type="text" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Subject name..." className="flex-1 w-full bg-gray-900 border border-gray-700 text-white rounded-xl px-4 py-2.5 focus:outline-none focus:border-purple-500" />
+
+      {/* Add Subject Form */}
+      <form onSubmit={addSubject} className="flex flex-col md:flex-row gap-3 mb-8 p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <input
+          type="text"
+          value={newSubject}
+          onChange={(e) => setNewSubject(e.target.value)}
+          placeholder="Subject name..."
+          className="glass-input flex-1 w-full rounded-xl px-4 py-2.5 text-sm"
+        />
         <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full md:w-auto">
-          <input type="number" min="0" value={initialAttended} onChange={(e) => setInitialAttended(e.target.value)} placeholder="Attended" className="flex-1 min-w-[80px] sm:w-24 bg-gray-900 border border-gray-700 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-500 text-sm" />
-          <input type="number" min="0" value={initialTotal} onChange={(e) => setInitialTotal(e.target.value)} placeholder="Total" className="flex-1 min-w-[80px] sm:w-24 bg-gray-900 border border-gray-700 text-white rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-500 text-sm" />
-          <button type="submit" className="w-full sm:w-auto bg-purple-600 hover:bg-purple-500 text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-purple-500/20">Add</button>
+          <input
+            type="number"
+            min="0"
+            value={initialAttended}
+            onChange={(e) => setInitialAttended(e.target.value)}
+            placeholder="Attended"
+            className="glass-input flex-1 min-w-[80px] sm:w-24 rounded-xl px-3 py-2.5 text-sm"
+          />
+          <input
+            type="number"
+            min="0"
+            value={initialTotal}
+            onChange={(e) => setInitialTotal(e.target.value)}
+            placeholder="Total"
+            className="glass-input flex-1 min-w-[80px] sm:w-24 rounded-xl px-3 py-2.5 text-sm"
+          />
+          <button type="submit" className="btn-primary w-full sm:w-auto px-6 py-2.5 rounded-xl text-sm">
+            Add
+          </button>
         </div>
       </form>
 
+      {/* Subject Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {validSubjects.map(sub => {
-          const percentage = sub.total_classes === 0 ? 100 : Math.round((sub.attended / sub.total_classes) * 100)
-          const isDanger = percentage < 75
+        <AnimatePresence>
+          {validSubjects.map((sub, i) => {
+            const percentage = sub.total_classes === 0 ? 100 : Math.round((sub.attended / sub.total_classes) * 100)
+            const isDanger = percentage < 75
 
-          return (
-            <li key={sub.id} className="list-none p-5 bg-gray-900/50 rounded-xl border border-gray-700/50 flex flex-col gap-4 hover:border-gray-600 transition-colors">
-              <div className="flex justify-between items-start mb-2">
+            return (
+              <motion.div
+                key={sub.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: i * 0.04, duration: 0.3 }}
+                whileHover={{ y: -2 }}
+                className="p-5 rounded-xl"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
                 {editingId === sub.id ? (
-                  <div className="flex flex-col gap-3 w-full mr-2 bg-gray-900 p-3 rounded-lg border border-gray-700">
-                    <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:border-purple-500" placeholder="Subject Name" />
-                    
-                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                  <div className="flex flex-col gap-3">
+                    <input type="text" value={editName} onChange={e => setEditName(e.target.value)} className="glass-input rounded-lg px-3 py-2 w-full text-sm" placeholder="Subject Name" />
+                    <div className="flex gap-2">
                       <div className="flex-1 flex items-center gap-2">
-                        <span className="text-gray-400 text-xs font-bold uppercase">Att:</span>
-                        <input type="number" min="0" value={editAttended} onChange={e => setEditAttended(e.target.value)} className="bg-gray-800 text-white border border-gray-600 rounded-lg px-2 py-1.5 w-full text-sm focus:outline-none focus:border-purple-500" />
+                        <span className="text-slate-500 text-xs font-bold uppercase">Att:</span>
+                        <input type="number" min="0" value={editAttended} onChange={e => setEditAttended(e.target.value)} className="glass-input rounded-lg px-2 py-1.5 w-full text-sm" />
                       </div>
-                      <span className="text-gray-500 font-bold hidden sm:block">/</span>
                       <div className="flex-1 flex items-center gap-2">
-                        <span className="text-gray-400 text-xs font-bold uppercase">Tot:</span>
-                        <input type="number" min="0" value={editTotal} onChange={e => setEditTotal(e.target.value)} className="bg-gray-800 text-white border border-gray-600 rounded-lg px-2 py-1.5 w-full text-sm focus:outline-none focus:border-purple-500" />
+                        <span className="text-slate-500 text-xs font-bold uppercase">Tot:</span>
+                        <input type="number" min="0" value={editTotal} onChange={e => setEditTotal(e.target.value)} className="glass-input rounded-lg px-2 py-1.5 w-full text-sm" />
                       </div>
                     </div>
-
-                    <div className="flex gap-2 mt-1">
-                      <button onClick={() => saveEdit(sub.id)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2 rounded-lg transition-colors">Save</button>
-                      <button onClick={() => setEditingId(null)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold py-2 rounded-lg transition-colors">Cancel</button>
+                    <div className="flex gap-2">
+                      <button onClick={() => saveEdit(sub.id)} className="btn-success flex-1 py-2 rounded-lg text-sm">Save</button>
+                      <button onClick={() => setEditingId(null)} className="btn-ghost flex-1 py-2 rounded-lg text-sm">Cancel</button>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <strong className="text-lg font-heading text-gray-100 truncate pr-2">{sub.name}</strong>
-                    <div className="flex gap-3 items-center shrink-0">
-                      <button onClick={() => startEditing(sub)} className="text-amber-400 hover:text-amber-300 text-xs font-bold">Edit</button>
-                      <button onClick={() => deleteSubject(sub.id)} className="text-red-400 hover:text-red-300 text-xs font-bold">Del</button>
-                      <div className={`px-2 py-0.5 rounded-full text-xs font-bold ${isDanger ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
-                        {percentage}%
+                    <div className="flex justify-between items-start mb-3">
+                      <strong className="text-base font-semibold text-white truncate pr-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                        {sub.name}
+                      </strong>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => startEditing(sub)} className="text-amber-400 hover:text-amber-300 text-xs font-bold transition-colors">Edit</button>
+                        <button onClick={() => deleteSubject(sub.id)} className="text-slate-600 hover:text-red-400 text-xs font-bold transition-colors">Del</button>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isDanger ? 'badge-danger' : 'badge-success'}`}>
+                          {percentage}%
+                        </span>
                       </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="mb-3 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: isDanger ? 'linear-gradient(90deg, #dc2626, #f97316)' : 'linear-gradient(90deg, #059669, #10b981)' }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(percentage, 100)}%` }}
+                        transition={{ duration: 0.6, ease: 'easeOut' }}
+                      />
+                    </div>
+
+                    <div className="text-xs text-slate-500 mb-3">
+                      {sub.attended} attended / {sub.total_classes} total
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => markAttendance(sub.id, sub.attended, sub.total_classes, true)}
+                        className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all badge-success hover:bg-emerald-500/20"
+                      >
+                        ✓ Showed Up
+                      </button>
+                      <button
+                        onClick={() => markAttendance(sub.id, sub.attended, sub.total_classes, false)}
+                        className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all badge-danger hover:bg-red-500/20"
+                      >
+                        ✗ Bunked
+                      </button>
                     </div>
                   </>
                 )}
-              </div>
-              
-              {editingId !== sub.id && (
-                <>
-                  <div className="text-sm text-gray-500 mb-2">Attended {sub.attended} out of {sub.total_classes} classes</div>
-                  <div className="flex gap-2 mt-auto">
-                    <button onClick={() => markAttendance(sub.id, sub.attended, sub.total_classes, true)} className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-sm font-semibold transition-all">Showed Up</button>
-                    <button onClick={() => markAttendance(sub.id, sub.attended, sub.total_classes, false)} className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-sm font-semibold transition-all">Bunked</button>
-                  </div>
-                </>
-              )}
-            </li>
-          )
-        })}
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
       </div>
     </div>
   )

@@ -1,9 +1,15 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 function ResearchBot() {
   const [query, setQuery] = useState('')
   const [history, setHistory] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const bottomRef = useRef(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [history, isLoading])
 
   const handleResearch = (e) => {
     e.preventDefault()
@@ -19,52 +25,94 @@ function ResearchBot() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: userQuery })
     })
-    .then(res => res.json())
-    .then(data => {
-      setHistory(prev => [...prev, { role: 'ai', text: data.response || data.error }])
-      setIsLoading(false)
-    })
-    .catch(() => {
-      setHistory(prev => [...prev, { role: 'ai', text: "Connection failed." }])
-      setIsLoading(false)
-    })
+      .then(res => res.json())
+      .then(data => {
+        setHistory(prev => [...prev, { role: 'ai', text: data.response || data.error }])
+        setIsLoading(false)
+      })
+      .catch(() => {
+        setHistory(prev => [...prev, { role: 'ai', text: "Connection failed. Is Flask running?" }])
+        setIsLoading(false)
+      })
   }
 
   return (
-    <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl h-[80vh] flex flex-col">
-      <h2 className="text-xl font-heading font-bold text-white mb-6 flex items-center gap-2">
-        <span className="text-cyan-400">🧠</span> Deep Research Console
-      </h2>
-      
-      <div className="flex-1 overflow-y-auto mb-6 space-y-4 pr-2">
-        {history.length === 0 && (
-          <div className="text-center text-gray-500 italic mt-20">Enter a topic to generate a structured research report.</div>
-        )}
-        {history.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] p-4 rounded-2xl ${msg.role === 'user' ? 'bg-cyan-600 text-white' : 'bg-gray-900 text-gray-200 border border-gray-700'}`}>
-              <p className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.text}</p>
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-900 p-4 rounded-2xl border border-gray-700 text-cyan-400 animate-pulse text-sm">
-              Synthesizing data...
-            </div>
-          </div>
-        )}
+    <div className="glass-card p-6 flex flex-col" style={{ height: '80vh' }}>
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6 shrink-0">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.25)' }}>
+          🧠
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Deep Research Console</h2>
+          <p className="text-xs text-slate-500">Gemini-powered explanations</p>
+        </div>
       </div>
 
-      <form onSubmit={handleResearch} className="flex flex-col sm:flex-row gap-3">
-        <input 
-          type="text" 
-          value={query} 
-          onChange={e => setQuery(e.target.value)} 
-          placeholder="Ask a deep technical question..." 
-          className="flex-1 bg-gray-900 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-cyan-500"
+      {/* Chat messages */}
+      <div className="flex-1 overflow-y-auto mb-4 space-y-4 pr-1">
+        {history.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <p className="text-4xl mb-3">🔬</p>
+              <p className="text-slate-500 text-sm">Ask anything — DSA, OOPS, AEM, DE...</p>
+            </div>
+          </div>
+        )}
+        <AnimatePresence>
+          {history.map((msg, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className="max-w-[82%] p-4 rounded-2xl text-sm leading-relaxed"
+                style={{
+                  background: msg.role === 'user'
+                    ? 'linear-gradient(135deg, #0e7490, #06b6d4)'
+                    : 'rgba(255,255,255,0.05)',
+                  border: msg.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.09)',
+                  color: msg.role === 'user' ? 'white' : '#cbd5e1'
+                }}
+              >
+                <p className="whitespace-pre-wrap font-sans">{msg.text}</p>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex justify-start"
+          >
+            <div className="p-4 rounded-2xl text-sm flex items-center gap-3" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}>
+              <div className="w-4 h-4 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin" />
+              <span className="text-cyan-400">Synthesizing data...</span>
+            </div>
+          </motion.div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <form onSubmit={handleResearch} className="flex flex-col sm:flex-row gap-3 shrink-0">
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Ask a deep technical question..."
+          className="glass-input flex-1 rounded-xl px-4 py-3 text-sm"
         />
-        <button type="submit" disabled={isLoading} className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-cyan-800 text-white px-6 py-3 rounded-xl font-medium transition-colors">
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="px-6 py-3 rounded-xl text-sm font-semibold disabled:opacity-50 transition-all"
+          style={{ background: 'linear-gradient(135deg, #0e7490, #06b6d4)', color: 'white', boxShadow: '0 4px 15px rgba(6,182,212,0.25)' }}
+        >
           Research
         </button>
       </form>

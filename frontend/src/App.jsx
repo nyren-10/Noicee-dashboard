@@ -1,168 +1,204 @@
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import TodoList from './components/TodoList'
 import SubjectManager from './components/SubjectManager'
 import TimetableManager from './components/TimetableManager'
 import AiParser from './components/AiParser'
 import Analytics from './components/Analytics'
 import ResearchBot from './components/ResearchBot.jsx'
-import NotesManager from './components/NotesManager'  
+import NotesManager from './components/NotesManager'
 import EscapePlan from './components/EscapePlan'
+import AttendanceHistory from './components/AttendanceHistory'
+import Blobs from './components/effects/Blobs'
+import './App.css'
+
+const NAV_ITEMS = [
+  { id: 'dashboard', label: 'Tasks & Chores', icon: '⚡', color: 'blue' },
+  { id: 'timetable', label: 'Timetable', icon: '📅', color: 'emerald' },
+  { id: 'attendance', label: 'Attendance', icon: '📊', color: 'purple' },
+  { id: 'ai-parser', label: 'AI Auto-Parse', icon: '🤖', color: 'violet' },
+  { id: 'analytics', label: 'Analytics', icon: '📈', color: 'amber' },
+  { id: 'research', label: 'Deep Research', icon: '🧠', color: 'cyan' },
+  { id: 'notes', label: 'Notes Vault', icon: '📝', color: 'blue' },
+]
+
+const TAB_COLORS = {
+  blue:    { active: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',    dot: 'bg-blue-400' },
+  emerald: { active: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30', dot: 'bg-emerald-400' },
+  purple:  { active: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',  dot: 'bg-purple-400' },
+  violet:  { active: 'bg-violet-500/20 text-violet-300 border border-violet-500/30',  dot: 'bg-violet-400' },
+  amber:   { active: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',   dot: 'bg-amber-400' },
+  cyan:    { active: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30',    dot: 'bg-cyan-400' },
+}
+
+const pageVariants = {
+  initial: { opacity: 0, y: 16, filter: 'blur(4px)' },
+  animate: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.3, ease: [0.23, 1, 0.32, 1] } },
+  exit:    { opacity: 0, y: -8, filter: 'blur(4px)', transition: { duration: 0.15 } }
+}
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
-  // New state to track if the mobile sidebar is open
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Wrapper function so when you click a button on mobile, the menu actually closes
   const handleTabSwitch = (tab) => {
     setActiveTab(tab)
     setIsMobileMenuOpen(false)
   }
 
+  const activeItem = NAV_ITEMS.find(n => n.id === activeTab)
+
   return (
-    <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden">
-      
-      {/* Mobile Dark Overlay (closes menu when you tap outside of it) */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 z-40 md:hidden transition-opacity"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+    <div className="flex h-screen overflow-hidden" style={{ background: '#050508' }}>
 
-      {/* Sidebar - Slide-out on mobile, fixed on desktop */}
-      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-gray-900 border-r border-gray-800 flex flex-col transform transition-transform duration-300 ease-in-out md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
-        <div className="p-6 border-b border-gray-800 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-            Survival System
-          </h1>
-          {/* Mobile Close Button */}
-          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-gray-400 hover:text-white text-xl">
-            ✕
-          </button>
-        </div>
-        
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <button 
-            onClick={() => handleTabSwitch('dashboard')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
-          >
-            📋 Tasks & Chores
-          </button>
-          
-          <button 
-            onClick={() => handleTabSwitch('timetable')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${activeTab === 'timetable' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
-          >
-            📅 Timetable
-          </button>
+      {/* ── CSS AURORA BACKGROUND ── */}
+      <div className="aurora-bg">
+        <div className="aurora-spot" />
+      </div>
 
-          <button 
-            onClick={() => handleTabSwitch('attendance')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${activeTab === 'attendance' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
-          >
-            📊 Attendance
-          </button>
+      {/* ── BLOB ORBS (depth layer) ── */}
+      <Blobs count={4} style={{ position: 'fixed', inset: 0, zIndex: 1 }} />
 
-          <button 
-            onClick={() => handleTabSwitch('ai-parser')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${activeTab === 'ai-parser' ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20' : 'text-gray-400 hover:bg-gray-800 hover:text-purple-400'}`}
-          >
-            🤖 AI Auto-Parse
-          </button>
+      {/* Mobile Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            key="overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 z-40 md:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
-          <button 
-            onClick={() => handleTabSwitch('analytics')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${activeTab === 'analytics' ? 'bg-amber-600 text-white shadow-md shadow-amber-500/20' : 'text-gray-400 hover:bg-gray-800 hover:text-amber-400'}`}
-          >
-            📈 Analytics
-          </button>
-
-          <button 
-            onClick={() => handleTabSwitch('research')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${activeTab === 'research' ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20' : 'text-gray-400 hover:bg-gray-800 hover:text-cyan-400'}`}
-          >
-            🧠 Deep Research
-          </button>
-          
-          <button 
-            onClick={() => handleTabSwitch('notes')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${activeTab === 'notes' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:bg-gray-800 hover:text-white'}`}
-          >
-            📝 Notes Vault
-          </button>
-        </nav>
-
-        <div className="p-4 border-t border-gray-800 bg-gray-900 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-emerald-500 flex items-center justify-center font-bold text-white shadow-lg">
-              M
-            </div>
+      {/* ── SIDEBAR ── */}
+      <motion.aside
+        initial={false}
+        className={`glass-sidebar fixed md:static inset-y-0 left-0 z-50 w-64 flex flex-col transform transition-transform duration-300 ease-out md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          {/* Logo */}
+          <div className="p-6 flex justify-between items-center" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
             <div>
-              <p className="text-sm font-semibold text-white">Mayank Teli</p>
-              <p className="text-xs text-gray-500">Admin Account</p>
+              <h1 className="text-xl font-bold gradient-text" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                Noicee OS
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">RTU Academic Tracker</p>
+            </div>
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="md:hidden text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg"
+              style={{ background: 'rgba(255,255,255,0.06)' }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Nav */}
+          <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+            {NAV_ITEMS.map((item) => {
+              const isActive = activeTab === item.id
+              const colorSet = TAB_COLORS[item.color]
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleTabSwitch(item.id)}
+                  className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-left ${
+                    isActive ? colorSet.active : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="active-pill"
+                      className="absolute inset-0 rounded-xl"
+                      style={{ background: 'rgba(255,255,255,0.04)' }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 35 }}
+                    />
+                  )}
+                  <span className="text-base relative z-10">{item.icon}</span>
+                  <span className="relative z-10">{item.label}</span>
+                  {isActive && (
+                    <span className={`ml-auto w-1.5 h-1.5 rounded-full ${colorSet.dot} relative z-10`} />
+                  )}
+                </button>
+              )
+            })}
+          </nav>
+
+          {/* User */}
+          <div className="p-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-sm shrink-0"
+                style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)', boxShadow: '0 0 12px rgba(99,102,241,0.4)' }}
+              >
+                M
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white leading-tight">Mayank Teli</p>
+                <p className="text-xs text-slate-500">Admin Account</p>
+              </div>
             </div>
           </div>
         </div>
-      </aside>
+      </motion.aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden relative w-full">
-        <header className="h-20 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 md:px-8 shrink-0">
-          <div className="flex items-center gap-3 md:gap-0">
-            {/* Hamburger Button (Mobile Only) */}
-            <button 
+      {/* ── MAIN CONTENT ── */}
+      <main className="flex-1 flex flex-col overflow-hidden" style={{ position: 'relative', zIndex: 2 }}>
+
+        {/* Header */}
+        <header className="glass-header h-16 flex items-center justify-between px-4 md:px-6 shrink-0">
+          <div className="flex items-center gap-3">
+            <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden text-gray-400 hover:text-white p-2 rounded-lg bg-gray-800"
+              className="md:hidden btn-ghost p-2 rounded-lg text-slate-400"
             >
               ☰
             </button>
-            <h2 className="text-xl font-semibold text-white capitalize font-heading">
-              {activeTab.replace('-', ' ')}
-            </h2>
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{activeItem?.icon}</span>
+              <h2 className="text-base font-semibold text-white capitalize" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                {activeItem?.label}
+              </h2>
+            </div>
           </div>
-          <div className="text-sm text-gray-400 font-medium hidden sm:block">
-            RTU Academic Tracker
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs text-slate-500 font-medium hidden sm:block">Live</span>
           </div>
         </header>
 
-        {/* Adjusted padding for mobile screens */}
-        <div className="flex-1 overflow-auto p-4 md:p-8">
+        {/* Content */}
+        <div className="flex-1 overflow-auto p-4 md:p-6">
           <div className="max-w-5xl mx-auto pb-10">
-            
-            <div className={activeTab === 'dashboard' ? 'block animate-fade-in' : 'hidden'}>
-              <TodoList />
-            </div>
-            
-            <div className={activeTab === 'timetable' ? 'block animate-fade-in' : 'hidden'}>
-              <TimetableManager />
-            </div>
-            
-            <div className={activeTab === 'attendance' ? 'block animate-fade-in' : 'hidden'}>
-              <EscapePlan />
-              <SubjectManager />
-            </div>
-            
-            <div className={activeTab === 'ai-parser' ? 'block animate-fade-in' : 'hidden'}>
-              <AiParser />
-            </div>
-            
-            <div className={activeTab === 'analytics' ? 'block animate-fade-in' : 'hidden'}>
-              <Analytics />
-            </div>
-            
-            <div className={activeTab === 'research' ? 'block animate-fade-in' : 'hidden'}>
-              <ResearchBot />
-            </div>
-            
-            <div className={activeTab === 'notes' ? 'block animate-fade-in' : 'hidden'}>
-              <NotesManager />
-            </div>
-
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                variants={pageVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                {activeTab === 'dashboard'  && <TodoList />}
+                {activeTab === 'timetable' && <TimetableManager />}
+                {activeTab === 'attendance' && (
+                  <div className="space-y-6">
+                    <EscapePlan />
+                    <SubjectManager />
+                    <AttendanceHistory />
+                  </div>
+                )}
+                {activeTab === 'ai-parser'  && <AiParser />}
+                {activeTab === 'analytics'  && <Analytics />}
+                {activeTab === 'research'   && <ResearchBot />}
+                {activeTab === 'notes'      && <NotesManager />}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </main>
-
     </div>
   )
 }
