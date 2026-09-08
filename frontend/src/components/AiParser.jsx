@@ -20,13 +20,26 @@ function AiParser() {
       method: 'POST',
       body: formData
     })
-      .then(res => res.json())
-      .then(data => {
+      .then(async (res) => {
+        let data = null
+        try {
+          data = await res.json()
+        } catch {
+          data = null
+        }
+
+        if (!res.ok) {
+          throw new Error(data?.error || data?.message || `Server returned error (${res.status})`)
+        }
+
+        return data
+      })
+      .then((data) => {
         setResult({ success: !data.error, message: data.message || data.error })
         setIsParsing(false)
       })
-      .catch(() => {
-        setResult({ success: false, message: "Failed to connect to the brain. Is Flask running?" })
+      .catch((err) => {
+        setResult({ success: false, message: err.message || "Failed to connect to the backend server." })
         setIsParsing(false)
       })
   }

@@ -65,8 +65,8 @@ def upgrade_db():
                 id SERIAL PRIMARY KEY,
                 day_of_week VARCHAR(15) NOT NULL,
                 subject_id INT REFERENCES subjects(id) ON DELETE CASCADE,
-                start_time TIME NOT NULL,
-                end_time VARCHAR(20) DEFAULT '',
+                start_time VARCHAR(30) DEFAULT '',
+                end_time VARCHAR(30) DEFAULT '',
                 teacher VARCHAR(100) DEFAULT '',
                 notes TEXT
             );
@@ -77,8 +77,10 @@ def upgrade_db():
         conn.rollback()
 
     try:
-        cur.execute("ALTER TABLE timetable ADD COLUMN IF NOT EXISTS end_time VARCHAR(20) DEFAULT '';")
+        cur.execute("ALTER TABLE timetable ADD COLUMN IF NOT EXISTS end_time VARCHAR(30) DEFAULT '';")
         cur.execute("ALTER TABLE timetable ADD COLUMN IF NOT EXISTS teacher VARCHAR(100) DEFAULT '';")
+        cur.execute("ALTER TABLE timetable ALTER COLUMN start_time TYPE VARCHAR(30);")
+        cur.execute("ALTER TABLE timetable ALTER COLUMN start_time DROP NOT NULL;")
         cur.execute("DELETE FROM timetable WHERE subject_id IN (SELECT id FROM subjects WHERE trim(name) = '');")
         cur.execute("DELETE FROM subjects WHERE trim(name) = '';")
         conn.commit()
@@ -419,7 +421,18 @@ def parse_timetable():
     if 'image' not in request.files:
         return jsonify({"error": "No image uploaded."}), 400
     custom_instructions = request.form.get('custom_prompt', '')
-    img = PIL.Image.open(io.BytesIO(request.files['image'].read()))
+    
+    try:
+        file_bytes = request.files['image'].read()
+        if not file_bytes:
+            return jsonify({"error": "Uploaded image file is empty."}), 400
+        img = PIL.Image.open(io.BytesIO(file_bytes))
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        # Resize high-resolution images to prevent timeout and excessive memory usage
+        img.thumbnail((1800, 1800))
+    except Exception as img_err:
+        return jsonify({"error": f"Failed to process image file: {str(img_err)}"}), 400
 
     prompt = f"""
     Analyze the provided image of a college timetable.
@@ -438,18 +451,29 @@ def parse_timetable():
     try:
         model = genai.GenerativeModel(GEMINI_MODEL, generation_config={"response_mime_type": "application/json"})
         response = model.generate_content([prompt, img])
-        parsed_data = json.loads(response.text)
+        
+        raw_text = response.text.strip()
+        # Clean any accidental markdown fences
+        if raw_text.startswith("```json"):
+            raw_text = raw_text[7:]
+        if raw_text.startswith("```"):
+            raw_text = raw_text[3:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3]
+        raw_text = raw_text.strip()
+
+        parsed_data = json.loads(raw_text)
 
         conn = get_db_connection()
         cur = conn.cursor()
         classes_added = 0
 
         for item in parsed_data:
-            subject_name = item.get('subject_name', '').strip()
+            subject_name = str(item.get('subject_name', '') or '').strip()
             if not subject_name or subject_name.upper() in ["SECTION A", "LUNCH"]:
                 continue
 
-            raw_day = item.get('day_of_week', 'Monday').strip()
+            raw_day = str(item.get('day_of_week', 'Monday') or 'Monday').strip()
             clean_day = raw_day.capitalize() if raw_day.upper() != "THURSDAY" else "Thursday"
 
             cur.execute('SELECT id FROM subjects WHERE name ILIKE %s', (subject_name,))
@@ -460,8 +484,13 @@ def parse_timetable():
                 cur.execute('INSERT INTO subjects (name, attended, total_classes) VALUES (%s, 0, 0) RETURNING id', (subject_name,))
                 subject_id = cur.fetchone()[0]
 
+            start_t = str(item.get('start_time', '') or '').strip()
+            end_t = str(item.get('end_time', '') or '').strip()
+            teacher = str(item.get('teacher', '') or '').strip()
+            notes = str(item.get('notes', '') or '').strip()
+
             cur.execute('''INSERT INTO timetable (day_of_week, subject_id, start_time, end_time, teacher, notes) VALUES (%s, %s, %s, %s, %s, %s)''',
-                        (clean_day, subject_id, item.get('start_time', ''), item.get('end_time', ''), item.get('teacher', ''), item.get('notes', '')))
+                        (clean_day, subject_id, start_t, end_t, teacher, notes))
             classes_added += 1
 
         conn.commit()
@@ -469,7 +498,8 @@ def parse_timetable():
         conn.close()
         return jsonify({"message": f"Successfully injected {classes_added} classes!"})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print("Error during parse_timetable:", e)
+        return jsonify({"error": f"Failed to parse timetable: {str(e)}"}), 500
 
 # --- BACKGROUND EMAIL SYNC WORKER ---
 def background_email_sync():
