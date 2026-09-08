@@ -24,7 +24,7 @@ app = Flask(__name__)
 CORS(app)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-GEMINI_MODEL = 'gemini-flash-latest'
+GEMINI_MODEL = 'gemini-3.5-flash'
 IST = pytz.timezone('Asia/Kolkata')
 
 def get_db_connection():
