@@ -24,7 +24,7 @@ app = Flask(__name__)
 CORS(app)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-GEMINI_MODEL = 'gemini-3.6-flash'
+GEMINI_MODEL = 'gemini-flash-latest'
 IST = pytz.timezone('Asia/Kolkata')
 
 def get_db_connection():
@@ -430,7 +430,7 @@ def parse_timetable():
         if img.mode != 'RGB':
             img = img.convert('RGB')
         # Resize high-resolution images to prevent timeout and excessive memory usage
-        img.thumbnail((1800, 1800))
+        img.thumbnail((1024, 1024))
     except Exception as img_err:
         return jsonify({"error": f"Failed to process image file: {str(img_err)}"}), 400
 
