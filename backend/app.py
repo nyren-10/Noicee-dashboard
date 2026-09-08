@@ -441,7 +441,9 @@ def parse_timetable():
     1. Extract the schedule SPECIFICALLY for SECTION A ONLY. Ignore all other sections. There should be exactly 3 classes per day (about 18 classes total).
     2. The "day_of_week" MUST be exactly one of these: "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday".
     3. Identify the Subject Name. DO NOT extract "Section A" or "LUNCH" as a subject.
-    4. Identify the Teacher's Name (usually separated by a slash).
+       - Expand "TC" to "Technical Communication".
+       - Include "Lab" in the subject name if it's a lab class.
+    4. Identify the Teacher's Name. The cell format is usually "Subject/Teacher" or "Subject / Teacher" (e.g., "AEM/KF"). Extract the Subject and Teacher separately.
     5. Keep the exact Start Time and End Time from the column headers (e.g., "09:00 AM").
     6. {custom_instructions if custom_instructions else "Leave the 'notes' field blank."}
 
