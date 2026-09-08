@@ -365,11 +365,20 @@ def research_chat():
     if not query:
         return jsonify({"error": "You didn't ask anything."}), 400
     prompt = f"The user is asking: '{query}'. Explain this in a simple, highly explanatory, and easy-to-understand way. CRITICAL RULE: DO NOT use any Markdown formatting. Use standard plain text with normal paragraph breaks only."
-    try:
-        model = genai.GenerativeModel(GEMINI_MODEL)
-        return jsonify({"response": model.generate_content(prompt).text})
-    except Exception as e:
-        return jsonify({"error": f"Research failed: {str(e)}"}), 500
+    
+    models_to_try = [GEMINI_MODEL, 'gemini-3.5-flash', 'gemini-3.1-flash-lite-preview', 'gemini-3-flash-preview']
+    last_err = None
+    for m in models_to_try:
+        try:
+            model = genai.GenerativeModel(m)
+            res = model.generate_content(prompt)
+            if res and res.text:
+                return jsonify({"response": res.text})
+        except Exception as e:
+            last_err = e
+            continue
+            
+    return jsonify({"error": f"Research failed: {str(last_err)}"}), 500
 
 # --- ANALYTICS BOT ROUTE ---
 @app.route('/api/analytics-chat', methods=['POST'])

@@ -30,29 +30,57 @@ function ResearchBot() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history, isLoading])
 
+  const executeResearch = async (userQuery, retryCount = 0) => {
+    setIsLoading(true)
+    const apiUrl = `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/research`
+
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: userQuery })
+      })
+
+      let data = null
+      try {
+        data = await res.json()
+      } catch {
+        data = null
+      }
+
+      if (!res.ok) {
+        // If server is returning a cold-start gateway error (502, 503, 504) and we haven't retried yet, retry once
+        if ((res.status === 502 || res.status === 503 || res.status === 504) && retryCount < 2) {
+          await new Promise(r => setTimeout(r, 2500))
+          return executeResearch(userQuery, retryCount + 1)
+        }
+        throw new Error(data?.error || `Server responded with status ${res.status}`)
+      }
+
+      setHistory(prev => [...prev, { role: 'ai', text: data.response || "No response received." }])
+      setIsLoading(false)
+    } catch (err) {
+      if (retryCount < 2) {
+        // Retry once on network drop / cold boot
+        await new Promise(r => setTimeout(r, 2500))
+        return executeResearch(userQuery, retryCount + 1)
+      }
+      setHistory(prev => [...prev, { 
+        role: 'ai', 
+        text: `Error: ${err.message || "Connection failed. The backend server might be waking up (Render cold start). Please try again in a few seconds."}` 
+      }])
+      setIsLoading(false)
+    }
+  }
+
   const handleResearch = (e) => {
     e.preventDefault()
-    if (!query.trim()) return
+    if (!query.trim() || isLoading) return
 
-    const userQuery = query
+    const userQuery = query.trim()
     setHistory(prev => [...prev, { role: 'user', text: userQuery }])
     setQuery('')
-    setIsLoading(true)
-
-    fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/research`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: userQuery })
-    })
-      .then(res => res.json())
-      .then(data => {
-        setHistory(prev => [...prev, { role: 'ai', text: data.response || data.error }])
-        setIsLoading(false)
-      })
-      .catch(() => {
-        setHistory(prev => [...prev, { role: 'ai', text: "Connection failed. Is Flask running?" }])
-        setIsLoading(false)
-      })
+    executeResearch(userQuery, 0)
   }
 
   return (

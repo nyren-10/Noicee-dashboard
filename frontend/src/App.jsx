@@ -1,4 +1,4 @@
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import TodoList from './components/TodoList'
 import SubjectManager from './components/SubjectManager'
@@ -40,6 +40,17 @@ const pageVariants = {
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Keep-alive heartbeat: ping backend health endpoint every 4 minutes while app is open
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"
+    const pingBackend = () => {
+      fetch(`${apiUrl}/api/health`).catch(() => {})
+    }
+    pingBackend() // Immediate ping on initial load
+    const interval = setInterval(pingBackend, 4 * 60 * 1000) // 4 minutes
+    return () => clearInterval(interval)
+  }, [])
 
   const handleTabSwitch = (tab) => {
     setActiveTab(tab)
