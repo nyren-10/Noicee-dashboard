@@ -3,9 +3,28 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 function ResearchBot() {
   const [query, setQuery] = useState('')
-  const [history, setHistory] = useState([])
+  const [history, setHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('research_chat_history') || '[]')
+    } catch {
+      return []
+    }
+  })
   const [isLoading, setIsLoading] = useState(false)
   const bottomRef = useRef(null)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('research_chat_history', JSON.stringify(history))
+    } catch (e) {
+      console.error("Failed to save chat history", e)
+    }
+  }, [history])
+
+  const clearChat = () => {
+    setHistory([])
+    localStorage.removeItem('research_chat_history')
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -39,14 +58,25 @@ function ResearchBot() {
   return (
     <div className="glass-card p-6 flex flex-col" style={{ height: '80vh' }}>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6 shrink-0">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.25)' }}>
-          🧠
+      <div className="flex items-center justify-between mb-6 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.25)' }}>
+            🧠
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Deep Research Console</h2>
+            <p className="text-xs text-slate-500">Gemini-powered explanations</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-lg font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Deep Research Console</h2>
-          <p className="text-xs text-slate-500">Gemini-powered explanations</p>
-        </div>
+        {history.length > 0 && (
+          <button
+            onClick={clearChat}
+            className="text-xs font-medium text-slate-400 hover:text-red-400 px-3 py-1.5 rounded-xl border border-slate-700/60 hover:border-red-500/40 transition-all flex items-center gap-1.5"
+            style={{ background: 'rgba(255,255,255,0.03)' }}
+          >
+            <span>🗑️</span> Clear Chat
+          </button>
+        )}
       </div>
 
       {/* Chat messages */}

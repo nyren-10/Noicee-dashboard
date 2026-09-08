@@ -22,8 +22,27 @@ function Analytics() {
   const [aiData, setAiData] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [chatQuery, setChatQuery] = useState('')
-  const [chatHistory, setChatHistory] = useState([])
+  const [chatHistory, setChatHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('analytics_chat_history') || '[]')
+    } catch {
+      return []
+    }
+  })
   const [isChatting, setIsChatting] = useState(false)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('analytics_chat_history', JSON.stringify(chatHistory))
+    } catch (e) {
+      console.error("Failed to save analytics chat", e)
+    }
+  }, [chatHistory])
+
+  const clearChat = () => {
+    setChatHistory([])
+    localStorage.removeItem('analytics_chat_history')
+  }
 
   useEffect(() => {
     fetch(`${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/tasks`).then(res => res.json()).then(data => setTasks(data))
@@ -242,9 +261,20 @@ function Analytics() {
         transition={{ delay: 0.35 }}
         className="glass-card p-6 print:hidden"
       >
-        <h3 className="text-base font-bold text-white mb-4 flex items-center gap-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-          <span className="text-blue-400">🤖</span> Ask Your Data
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-bold text-white flex items-center gap-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span className="text-blue-400">🤖</span> Ask Your Data
+          </h3>
+          {chatHistory.length > 0 && (
+            <button
+              onClick={clearChat}
+              className="text-xs font-medium text-slate-400 hover:text-red-400 px-2.5 py-1 rounded-lg border border-slate-700/60 hover:border-red-500/40 transition-all flex items-center gap-1.5"
+              style={{ background: 'rgba(255,255,255,0.03)' }}
+            >
+              <span>🗑️</span> Clear
+            </button>
+          )}
+        </div>
         <div className="rounded-xl h-48 overflow-y-auto p-4 mb-4 space-y-3" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.07)' }}>
           {chatHistory.length === 0 && (
             <p className="text-slate-600 text-sm italic">e.g. "How many classes do I need to attend to hit 75% in OOPS?"</p>
