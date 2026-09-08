@@ -381,8 +381,8 @@ Instructions:
    - Use structured Markdown with clear section headers (`###`), bullet points, bold key terms, and code blocks with language tags.
    - Avoid excessive filler or preamble; get straight to high-value insights.
 5. Mathematical Notation:
-   - DO NOT use raw LaTeX syntax like `$`, `$$`, `\\text{}`, `\\geq`, `\\in`, `\\setminus`.
-   - Use standard clean text, code snippets, or unicode characters (e.g., `>= 0`, `G = (V, E)`, `u in V`) so formulas look beautiful and readable without raw dollar signs or code tags.
+   - DO NOT use raw LaTeX syntax like $, $$, \\text, \\geq, \\in, \\setminus.
+   - Use standard clean text, code snippets, or unicode characters (e.g., >= 0, G = (V, E), u in V) so formulas look beautiful and readable without raw dollar signs or code tags.
 """
     
     models_to_try = [GEMINI_MODEL, 'gemini-3.5-flash', 'gemini-3.1-flash-lite-preview', 'gemini-3-flash-preview']
