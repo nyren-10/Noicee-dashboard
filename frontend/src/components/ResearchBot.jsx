@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 function ResearchBot() {
   const [query, setQuery] = useState('')
@@ -142,6 +143,7 @@ function ResearchBot() {
                 ) : (
                   <div className="markdown-content text-slate-200 leading-relaxed space-y-2">
                     <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
                       components={{
                         h1: ({node, ...props}) => <h1 className="text-base font-bold text-white mt-3 mb-1" {...props} />,
                         h2: ({node, ...props}) => <h2 className="text-sm font-bold text-cyan-300 mt-3 mb-1" {...props} />,
