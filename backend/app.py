@@ -364,7 +364,23 @@ def research_chat():
     query = request.json.get('query', '')
     if not query:
         return jsonify({"error": "You didn't ask anything."}), 400
-    prompt = f"The user is asking: '{query}'. Explain this in a simple, highly explanatory, and easy-to-understand way. CRITICAL RULE: DO NOT use any Markdown formatting. Use standard plain text with normal paragraph breaks only."
+    prompt = f"""
+You are the Deep Research AI Console for Noicee OS — an advanced academic research companion for engineering and computer science students.
+
+Student Query: "{query}"
+
+Instructions:
+1. Provide an intelligent, well-structured, authoritative academic response.
+2. If the user asks general or contextual questions (like "What's the weather today?"), respond directly and clearly (noting any limitations if real-time local sensor access is unavailable) rather than explaining basic terminology in a childish way.
+3. For technical and academic questions (Data Structures, Algorithms, Mathematics, Electronics, RTU exam concepts, Systems, Code):
+   - Break down the core theoretical concepts clearly.
+   - Provide concrete examples, step-by-step mechanisms, or mathematical formulations.
+   - Include clean, formatted code snippets with explanations where helpful.
+   - Mention real-world engineering applications or exam-relevant tips when appropriate.
+4. Formatting:
+   - Use structured Markdown with clear section headers (`###`), bullet points, bold key terms, and code blocks with language tags.
+   - Avoid excessive filler or preamble; get straight to high-value insights.
+"""
     
     models_to_try = [GEMINI_MODEL, 'gemini-3.5-flash', 'gemini-3.1-flash-lite-preview', 'gemini-3-flash-preview']
     last_err = None

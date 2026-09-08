@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
 
 function ResearchBot() {
   const [query, setQuery] = useState('')
@@ -127,7 +128,7 @@ function ResearchBot() {
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className="max-w-[82%] p-4 rounded-2xl text-sm leading-relaxed"
+                className="max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed"
                 style={{
                   background: msg.role === 'user'
                     ? 'linear-gradient(135deg, #0e7490, #06b6d4)'
@@ -136,7 +137,37 @@ function ResearchBot() {
                   color: msg.role === 'user' ? 'white' : '#cbd5e1'
                 }}
               >
-                <p className="whitespace-pre-wrap font-sans">{msg.text}</p>
+                {msg.role === 'user' ? (
+                  <p className="whitespace-pre-wrap font-sans">{msg.text}</p>
+                ) : (
+                  <div className="markdown-content text-slate-200 leading-relaxed space-y-2">
+                    <ReactMarkdown
+                      components={{
+                        h1: ({node, ...props}) => <h1 className="text-base font-bold text-white mt-3 mb-1" {...props} />,
+                        h2: ({node, ...props}) => <h2 className="text-sm font-bold text-cyan-300 mt-3 mb-1" {...props} />,
+                        h3: ({node, ...props}) => <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-wider mt-2.5 mb-1" {...props} />,
+                        p: ({node, ...props}) => <p className="mb-2 leading-relaxed text-slate-200" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc list-inside space-y-1 my-2 ml-1 text-slate-300" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal list-inside space-y-1 my-2 ml-1 text-slate-300" {...props} />,
+                        li: ({node, ...props}) => <li className="text-slate-300" {...props} />,
+                        strong: ({node, ...props}) => <strong className="font-semibold text-white" {...props} />,
+                        code: ({node, inline, className, children, ...props}) => {
+                          return inline ? (
+                            <code className="px-1.5 py-0.5 rounded bg-black/40 text-cyan-300 font-mono text-xs border border-cyan-500/20" {...props}>
+                              {children}
+                            </code>
+                          ) : (
+                            <pre className="p-3 my-2 rounded-xl bg-black/60 border border-slate-700/50 overflow-x-auto text-xs font-mono text-cyan-200">
+                              <code {...props}>{children}</code>
+                            </pre>
+                          )
+                        }
+                      }}
+                    >
+                      {msg.text}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
             </motion.div>
           ))}
